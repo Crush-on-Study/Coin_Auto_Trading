@@ -1,46 +1,43 @@
-import RSI
-import random
-import balance
-import login,pyupbit
+import pandas as pd
+import ta
 
-upbit = pyupbit.Upbit(login.id,login.pw)
+# coin_list 가져오기
+from get_top_5_volume import coin_list
 
-def random_num(length):
-    strategy = []
-    for _ in range(length):
-        rsi = random.randint(20,85)
-        strategy.append(rsi)
-    
-    return strategy
+# 빈 데이터프레임 생성
+combined_data = pd.DataFrame()
 
-def rsi_backtest(strategy):
-    initial_balance = balance.check_remaining_krw()
-    initial_balance = float(initial_balance)
-    # print('19번 코드',initial_balance)
-    if initial_balance < 1000000:
-        initial_balance = 1000000
-    remaining_balance = initial_balance
-    holdings = 0  # 보유한 코인의 수량
+# 각 코인의 데이터를 읽어와서 하나의 데이터프레임에 추가
+for ticker in coin_list:
+    file_path = f'{ticker}_historical_price_data.csv'
+    df = pd.read_csv(file_path)
+    combined_data = pd.concat([combined_data, df], ignore_index=True)
 
-    for i in range(len(strategy)):
-        rsi = strategy[i]  # 간단한 예제를 위해 RSI 값만 활용
+# RSI 전략 정의
+def rsi_strategy(data):
+    # RSI 계산
+    data['rsi'] = ta.momentum.RSIIndicator(data['close']).rsi()
 
-        if rsi <= 30:  # RSI가 30 이하인 경우 매수
-            buy_price = 100  # 임의의 매수 가격 설정
-            buy_quantity = remaining_balance // buy_price  # 보유 가능한 수량 계산
-            holdings += buy_quantity
-            remaining_balance -= buy_price * buy_quantity
-        
-        elif rsi >= 70:  # RSI가 70 이상인 경우 매도
-            sell_price = 150  # 임의의 매도 가격 설정
-            remaining_balance += sell_price * holdings
-            holdings = 0
+    # RSI 신호 생성
+    data['buy_signal'] = (data['rsi'] > 70)  # RSI가 70 이상일 때 매수 신호 생성
+    data['sell_signal'] = (data['rsi'] < 30)  # RSI가 30 미만일 때 매도 신호 생성
 
-    final_balance = remaining_balance + (holdings * sell_price)
-    return final_balance
+    # 전략 적용
+    position = 0  # 포지션 (0: 현금, 1: 보유)
+    balance = 10000000  # 초기 자본금 1000만원을 디폴트로 지정.
+    for i, row in data.iterrows():
+        if row['buy_signal']:
+            # 매수 조건 충족 시 구매
+            position = balance / row['close']
+            balance = 0
+        elif row['sell_signal']:
+            # 매도 조건 충족 시 판매
+            balance = position * row['close']
+            position = 0
+    return balance
 
-if __name__ == "__main__":
-    strategy = random_num(20) # RSI 지수 20개 넣어보자
-    print(f'Input된 임의의 RSI값들 : {strategy}')
-    result = rsi_backtest(strategy)
-    print(f'시뮬레이션 결과 : {result}')
+# 백테스팅 수행
+final_balance = rsi_strategy(combined_data)
+
+# 백테스팅 결과 출력
+print(f"최종 자본금: {final_balance}")
