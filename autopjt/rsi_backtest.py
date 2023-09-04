@@ -1,3 +1,5 @@
+# 2023-09-04 현재 수정 중입니다.
+
 import pandas as pd
 import ta
 
@@ -22,22 +24,40 @@ def rsi_strategy(data):
     data['buy_signal'] = (data['rsi'] > 70)  # RSI가 70 이상일 때 매수 신호 생성
     data['sell_signal'] = (data['rsi'] < 30)  # RSI가 30 미만일 때 매도 신호 생성
 
+    # 초기 자본금 및 포지션 설정
+    initial_balance = 10000000  # 초기 자본금
+    balance = initial_balance
+    position = 0
+
+    # 거래 로그 기록
+    trade_log = []
+
     # 전략 적용
-    position = 0  # 포지션 (0: 현금, 1: 보유)
-    balance = 10000000  # 초기 자본금 1000만원을 디폴트로 지정.
     for i, row in data.iterrows():
         if row['buy_signal']:
             # 매수 조건 충족 시 구매
-            position = balance / row['close']
-            balance = 0
+            if balance > 0:
+                position = balance / row['close']
+                balance = 0
+                trade_log.append(('buy', row['timestamp'], row['close']))
         elif row['sell_signal']:
             # 매도 조건 충족 시 판매
-            balance = position * row['close']
-            position = 0
-    return balance
+            if position > 0:
+                balance = position * row['close']
+                position = 0
+                trade_log.append(('sell', row['timestamp'], row['close']))
+
+    # 최종 자본금 계산
+    final_balance = balance if balance > 0 else position * data.iloc[-1]['close']
+
+    return final_balance, trade_log
 
 # 백테스팅 수행
-final_balance = rsi_strategy(combined_data)
+final_balance, trade_log = rsi_strategy(combined_data)
 
 # 백테스팅 결과 출력
 print(f"최종 자본금: {final_balance}")
+
+# 거래 로그 출력
+for action, timestamp, price in trade_log:
+    print(f"{timestamp}: {action} at {price}")
