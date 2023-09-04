@@ -1,32 +1,23 @@
 import pyupbit
-import talib
-import numpy as np
-import time
-from get_top_5_volume import coin_list  # get_top_5_volume.py에서 가져온 상위 5개 코인 리스트
+import ta
 
-# RSI와 볼린저 밴드 계산 함수
-def calculate_rsi_bollinger_bands(ohlcv):
-    close_prices = ohlcv['close'].values
-    
+# get_top_5_volume.py에서 이미 구한 coin_list를 가져옴
+from get_top_5_volume import coin_list
+
+for ticker in coin_list:
+    # OHLCV 데이터 가져오기
+    df = pyupbit.get_ohlcv(ticker, interval='day', count=20)  # 최근 20일 데이터 가져오기
+
     # RSI 계산
-    rsi = talib.RSI(close_prices)
-    
-    # 볼린저 밴드 계산
-    upper_band, middle_band, lower_band = talib.BBANDS(close_prices, timeperiod=20)
-    
-    return rsi[-1], upper_band[-1], middle_band[-1], lower_band[-1]
+    df['rsi'] = ta.momentum.RSIIndicator(df['close']).rsi()
 
-while True:
-    for coin in coin_list:
-        try:
-            ohlcv = pyupbit.get_ohlcv(coin, interval='day', count=21)
-            if ohlcv is not None and len(ohlcv) == 21:
-                rsi, upper_band, middle_band, lower_band = calculate_rsi_bollinger_bands(ohlcv)
-                print(f'{coin} - RSI: {rsi:.2f}, Upper Bollinger Band: {upper_band:.2f}, Middle Bollinger Band: {middle_band:.2f}, Lower Bollinger Band: {lower_band:.2f}')
-            else:
-                print(f'{coin} - 데이터 부족')
-        except Exception as e:
-            print(f'오류 발생: {e}')
-    
+    # 볼린저 밴드 계산
+    bollinger = ta.volatility.BollingerBands(df['close'])
+    df['bollinger_mavg'] = bollinger.bollinger_mavg()
+    df['bollinger_hband'] = bollinger.bollinger_hband()
+    df['bollinger_lband'] = bollinger.bollinger_lband()
+
+    # 결과 출력
+    print(f"종목: {ticker}")
+    print(df[['rsi', 'bollinger_mavg', 'bollinger_hband', 'bollinger_lband']].tail())
     print("\n")
-    time.sleep(5)
