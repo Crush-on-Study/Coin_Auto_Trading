@@ -1,6 +1,8 @@
 import pyupbit
 import ta
-
+import login
+import requests
+webhook_url = 'my_webhook_from_slack'
 # get_top_5_volume.py에서 이미 구한 coin_list를 가져옴
 from get_top_5_volume import real_ticker_list
 
@@ -15,6 +17,23 @@ target_coins = []
 for idx in real_ticker_list:
     if idx in upbit_coins:
         target_coins.append(idx)
+        
+# Slack에 메시지 보내기
+def send_slack_message(message):
+    payload = {
+        'text': message,
+    }
+    try:
+        response = requests.post(webhook_url, json=payload)
+        if response.status_code == 200:
+            print('Slack에 메시지를 성공적으로 보냈습니다.')
+        else:
+            print('Slack에 메시지 보내기 실패:', response.status_code, response.text)
+    except Exception as e:
+        print('Slack에 메시지 보내기 오류:', str(e))
+
+# RSI 값이 포함된 코인의 개수를 저장할 변수
+count_rsi_condition = 0
 
 for ticker in real_ticker_list:
     # OHLCV 데이터 가져오기
@@ -33,7 +52,35 @@ for ticker in real_ticker_list:
         df['bollinger_hband'] = bollinger.bollinger_hband()
         df['bollinger_lband'] = bollinger.bollinger_lband()
 
+        # 조건에 맞으면 카운트 증가
+        if 25 <= df.iloc[-1]['rsi'] <= 35:
+            count_rsi_condition += 1
+
         # 결과 출력
         print(f"종목: {ticker}")
         print(df[['rsi', 'bollinger_mavg', 'bollinger_hband', 'bollinger_lband']].tail())
         print("\n")
+
+# RSI 값이 25에서 35 사이에 있는 코인의 개수 출력
+print(f"RSI 값이 25에서 35 사이에 있는 코인의 개수: {count_rsi_condition}")
+
+# 조건에 맞는 코인이 있을 경우, 원화 잔고를 나눠서 매수
+if count_rsi_condition > 0:
+    try:
+        upbit = pyupbit.Upbit(login.id, login.pw)  # login.py에서 API 키 정보 가져오기
+        krw_balance = upbit.get_balance("KRW")  # 현재 원화 잔고 조회
+        if krw_balance >= 5000: # 비트코인의 경우는 5000원부터 매매가 가능
+            amount_to_buy_per_coin = krw_balance / count_rsi_condition
+            for ticker in real_ticker_list:
+                # 특정 조건에 따라 시장가 매수 주문 실행
+                # 예: RSI가 70 이상인 경우 KRW-BTC 시장에서 원화 잔고 전체를 시장가 주문으로 매수
+                if 25 <= df.iloc[-1]['rsi'] <= 35:
+                    upbit.buy_market_order(ticker, amount_to_buy_per_coin)
+                    print(f"{ticker} 시장가 매수 주문이 실행되었습니다. 매수량: {amount_to_buy_per_coin}")
+                    # 매수 주문이 성공했을 때 메시지 보내기
+                    send_slack_message('매수 주문이 실행되었습니다.')
+        else:
+            print("원화 잔고가 부족합니다.")
+            send_slack_message('원화 잔고가 부족합니다.')
+    except Exception as e:
+        print(f"시장가 매수 주문 실행 중 오류 발생: {e}")
