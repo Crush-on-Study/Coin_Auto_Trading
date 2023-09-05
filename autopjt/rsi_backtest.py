@@ -1,21 +1,15 @@
-# 2023-09-04 현재 수정 중입니다.
-
+import os
 import pandas as pd
 import ta
+from datetime import datetime
 
-# coin_list 가져오기
-from get_top_5_volume import coin_list
+# 현재 스크립트 파일의 디렉터리 경로
+script_dir = os.path.dirname(os.path.abspath(__file__))
 
-# 빈 데이터프레임 생성
-combined_data = pd.DataFrame()
+# csv_folder 폴더 경로 (AUTOPJT 폴더 안에 있는 경우)
+csv_folder = os.path.join(script_dir, 'csv_folder')
 
-# 각 코인의 데이터를 읽어와서 하나의 데이터프레임에 추가
-for ticker in coin_list:
-    file_path = f'{ticker}_historical_price_data.csv'
-    df = pd.read_csv(file_path)
-    combined_data = pd.concat([combined_data, df], ignore_index=True)
-
-# RSI 전략 정의
+# RSI 전략 정의    
 def rsi_strategy(data):
     # RSI 계산
     data['rsi'] = ta.momentum.RSIIndicator(data['close']).rsi()
@@ -49,15 +43,36 @@ def rsi_strategy(data):
 
     # 최종 자본금 계산
     final_balance = balance if balance > 0 else position * data.iloc[-1]['close']
-
+    
     return final_balance, trade_log
 
-# 백테스팅 수행
-final_balance, trade_log = rsi_strategy(combined_data)
+# CSV 폴더에서 파일 목록 가져오기
+csv_files = [f for f in os.listdir(csv_folder) if f.endswith('.csv')]
 
-# 백테스팅 결과 출력
-print(f"최종 자본금: {final_balance}")
+# 파일별로 백테스팅 수행
+for file_name in csv_files:
+    file_path = os.path.join(csv_folder, file_name)  # 파일 경로
+    coin_name = file_name.split(' ')[1].split('.')[0]  # 코인 이름 추출
+    
+    # CSV 파일 불러오기
+    try:
+        df = pd.read_csv(file_path)
 
-# 거래 로그 출력
-for action, timestamp, price in trade_log:
-    print(f"{timestamp}: {action} at {price}")
+        # 컬럼 이름 변경
+        df.rename(columns={"Unnamed: 0": "timestamp"}, inplace=True)
+
+        # 백테스팅 수행
+        result = rsi_strategy(df)
+        
+        if result is not None:
+            final_balance, trade_log = result
+
+            # 결과 출력
+            print(f'{coin_name} 백테스팅 결과 - 최종 자본금: {final_balance}')
+            print('거래 로그:')
+            for action, timestamp, price in trade_log:
+                print(f"{timestamp}: {action} at {price}")
+        else:
+            print(f'{coin_name} 데이터에 대한 백테스팅 결과가 없습니다.')
+    except Exception as e:
+        print(f'오류 발생: {e}')
