@@ -2,7 +2,7 @@ import pyupbit
 import ta
 import login
 import requests
-webhook_url = 'https://hooks.slack.com/services/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'
+webhook_url = 'my_slack_webhook'
 # get_top_5_volume.py에서 이미 구한 coin_list를 가져옴
 from get_top_5_volume import real_ticker_list
 
