@@ -2,7 +2,7 @@ import pyupbit
 import ta
 import login
 import requests
-webhook_url = 'my_webhook_from_slack'
+webhook_url = 'https://hooks.slack.com/services/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'
 # get_top_5_volume.py에서 이미 구한 coin_list를 가져옴
 from get_top_5_volume import real_ticker_list
 
@@ -84,3 +84,27 @@ if count_rsi_condition > 0:
             send_slack_message('원화 잔고가 부족합니다.')
     except Exception as e:
         print(f"시장가 매수 주문 실행 중 오류 발생: {e}")
+        
+
+# 매도 주문 실행 함수
+def execute_market_sell_order_with_profit(ticker, buy_price):
+    try:
+        upbit = pyupbit.Upbit(login.id, login.pw)  # login.py에서 API 키 정보 가져오기
+        current_price = pyupbit.get_orderbook(tickers=ticker)[0]['orderbook_units'][0]['ask_price']  # 현재 시장 가격 조회
+        profit_percentage = ((current_price - buy_price) / buy_price) * 100  # 수익률 계산
+
+        if profit_percentage >= 5:  # 수익률이 5% 이상이면 매도 주문 실행
+            upbit.sell_market_order(ticker, upbit.get_balance(ticker))  # 보유 중인 모든 코인 매도
+            print(f"{ticker} 시장가 매도 주문이 실행되었습니다. 수익률: {profit_percentage:.2f}%")
+            # 매도 주문이 성공했을 때 메시지 보내기
+            send_slack_message(f'{ticker} 시장가 매도 주문이 실행되었습니다. 수익률: {profit_percentage:.2f}%')
+    except Exception as e:
+        print(f"시장가 매도 주문 실행 중 오류 발생: {e}")
+
+# 매도 주문 실행 함수 호출
+for ticker in real_ticker_list:
+    # 현재 보유 중인 코인의 매수 가격 조회
+    buy_price = upbit.get_avg_buy_price(ticker)
+    if buy_price is not None:  # 매수 기록이 있는 코인만 처리
+        execute_market_sell_order_with_profit(ticker, buy_price)
+
