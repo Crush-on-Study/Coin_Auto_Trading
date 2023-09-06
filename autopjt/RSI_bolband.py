@@ -3,7 +3,7 @@ import ta
 import login
 import requests
 
-webhook_url = 'My_Slack_webhook'
+webhook_url = 'my_slack'
 
 # get_top_5_volume.py에서 이미 구한 coin_list를 가져옴
 from get_top_5_volume import real_ticker_list
@@ -74,7 +74,6 @@ def execute_market_sell_order_with_profit(coin, buy_price):
         print(f"시장가 매도 주문 실행 중 오류 발생: {e}")
 
 
-
 # 메인 함수
 def main():
     global count_rsi_condition  # count_rsi_condition 변수를 global로 선언
@@ -101,9 +100,9 @@ def main():
                 count_rsi_condition += 1
 
             # 결과 출력
-            print(f"종목: {coin}")
-            print(df[['rsi', 'bollinger_mavg', 'bollinger_hband', 'bollinger_lband']].tail())
-            print("\n")
+            # print(f"종목: {coin}")
+            # print(df[['rsi', 'bollinger_mavg', 'bollinger_hband', 'bollinger_lband']].tail())
+            # print("\n")
 
     # RSI 값이 25에서 35 사이에 있는 코인의 개수 출력
     print(f"RSI 값이 25에서 35 사이에 있는 코인의 개수: {count_rsi_condition}")
@@ -129,7 +128,7 @@ def main():
         # 현재 보유 중인 코인의 매수 가격 조회
         buy_price = upbit.get_avg_buy_price(coin)
         balance = upbit.get_balance(coin)  # 보유 중인 코인 수량 조회
-        print('내 보유 코인과 현재 호가', coin, buy_price, balance)
+        # print('내 보유 코인과 현재 호가', coin, buy_price, balance)
         if buy_price:  # 매수 기록이 있는 코인만 처리
             execute_market_sell_order_with_profit(coin, buy_price)
 
