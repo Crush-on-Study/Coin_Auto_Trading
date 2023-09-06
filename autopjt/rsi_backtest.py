@@ -14,32 +14,40 @@ def rsi_strategy(data):
     # RSI 계산
     data['rsi'] = ta.momentum.RSIIndicator(data['close']).rsi()
 
-    # RSI 신호 생성
-    data['buy_signal'] = (data['rsi'] > 70)  # RSI가 70 이상일 때 매수 신호 생성
-    data['sell_signal'] = (data['rsi'] < 30)  # RSI가 30 미만일 때 매도 신호 생성
-
     # 초기 자본금 및 포지션 설정
     initial_balance = 10000000  # 초기 자본금
     balance = initial_balance
     position = 0
+    buy_price = None  # 구매 가격을 저장할 변수
 
     # 거래 로그 기록
     trade_log = []
 
     # 전략 적용
     for i, row in data.iterrows():
-        if row['buy_signal']:
-            # 매수 조건 충족 시 구매
-            if balance > 0:
-                position = balance / row['close']
-                balance = 0
-                trade_log.append(('buy', row['timestamp'], row['close']))
-        elif row['sell_signal']:
-            # 매도 조건 충족 시 판매
+        if buy_price is not None and (row['close'] / buy_price - 1) >= 0.0205:
+            # 수익률이 2.05% 이상이면 매도
             if position > 0:
                 balance = position * row['close']
                 position = 0
                 trade_log.append(('sell', row['timestamp'], row['close']))
+                buy_price = None  # 매도한 경우 구매 가격 초기화
+                
+            elif buy_price is not None and (row['close'] / buy_price - 1) <= -0.0195:
+                # 손절 기능: 수익률이 -1.95% 이하이면 매도
+                if position > 0:
+                    balance = position * row['close']
+                    position = 0
+                    trade_log.append(('sell', row['timestamp'], row['close']))
+                    buy_price = None  # 손절한 경우 구매 가격 초기화
+                    
+        elif 25 <= row['rsi'] <= 35:
+            # RSI가 25 이상 35 이하일 때 매수
+            if balance > 0:
+                position = balance / row['close']
+                balance = 0
+                trade_log.append(('buy', row['timestamp'], row['close']))
+                buy_price = row['close']  # 매수한 경우 구매 가격 저장
 
     # 최종 자본금 계산
     final_balance = balance if balance > 0 else position * data.iloc[-1]['close']
