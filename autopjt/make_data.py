@@ -4,10 +4,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 # real_ticker_list 가져오기
-from get_top_5_volume import real_ticker_list
-
-# real_ticker_list 수정
-real_ticker_list = ['KRW-' + ticker.split('-')[0] for ticker in real_ticker_list]
+from get_top_5_volume import filtered_ticker_list
 
 # 업비트 KRW 시장의 코인 목록 가져오기
 upbit_coins = pyupbit.get_tickers(fiat="KRW")
@@ -25,7 +22,7 @@ csv_folder = os.path.join(script_dir, 'csv_folder')
 
 # real_ticker_list에 포함된 코인 중 업비트 KRW 시장에 상장된 코인만 선택
 target_coins = []
-for idx in real_ticker_list:
+for idx in filtered_ticker_list:
     if idx in upbit_coins:
         target_coins.append(idx)
 
@@ -42,9 +39,7 @@ for coin in target_coins:
 # ohlcv 데이터를 파일로 저장
 for coin, df in ohlcv_data.items():
     try:
-        # 'timestamp' 열을 추가하여 열 순서를 조정
-        df['timestamp'] = df.index
-        df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
+        df = df[['open', 'high', 'low', 'close', 'volume']]
         
         file_name = f'{today_date} {coin.split("-")[1]}.csv'
         file_path = os.path.join(csv_folder, file_name)
