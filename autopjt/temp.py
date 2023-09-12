@@ -4,15 +4,25 @@ import uuid
 import websocket
 import json
 import login
-import time
 import asyncio
 import aiohttp
 from balance import check_balance
-from datetime import timedelta, datetime
 import logging
 from logging.handlers import RotatingFileHandler
 import ta
+import requests
+from ast import literal_eval
+import time
+import datetime
+import numpy as np
 import pandas as pd
+import operator
+import threading
+import math
+import unicodedata
+from wcwidth import wcswidth
+from multiprocessing import Process, Manager
+import pytz
 
 log_filename = 'app.log'
 max_log_size_bytes = 10 * 1024 * 1024  # 10 MB (최대 파일 크기)
@@ -46,7 +56,7 @@ async def upbit_api_request(url, headers=None, params=None):
             return data
 
 # WebSocket 메시지 처리 함수
-def on_message(ws, message):
+def on_message(ws, message, data_dict, minute, rsi_number, target_up, target_down, rsi_sample):
     data = json.loads(message)
     if "type" in data and data["type"] == "ticker" and "content" in data:
         coin = data["content"]["code"]
@@ -54,6 +64,9 @@ def on_message(ws, message):
         trade_price = data["content"]["tradePrice"]
         print(f"코인: {coin}, 시간: {timestamp}, 가격: {trade_price}")
 
+        # RSI 계산 함수 호출
+        data_dict = calculate_realtime_rsi(coin, data_dict, minute, rsi_number, target_up, target_down, rsi_sample)
+        
 def on_connect(ws):
     print("connected!")
 
@@ -99,6 +112,77 @@ ws_app = websocket.WebSocketApp("wss://api.upbit.com/websocket/v1",
 
 ws_app.run_forever()
 
+# 실시간 RSI 계산 함수
+async def calculate_realtime_rsi(coin, data_dict, minute, rsi_number, target_up, target_down, rsi_sample):
+    try:
+        # 코인에 대한 1분 봉 데이터 가져오기
+        url = f"https://api.upbit.com/v1/candles/minutes/{minute}"
+        params = {"market": coin, "count": rsi_sample}
+        candle_data = await upbit_api_request(url, headers, params)
+
+        if not candle_data:
+            print(f"{coin}의 {minute}분 봉 데이터를 가져올 수 없습니다.")
+            return data_dict
+
+        # 봉 데이터를 DataFrame으로 변환
+        df = pd.DataFrame(candle_data)
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df.set_index("timestamp", inplace=True)
+
+        # RSI 계산
+        df["rsi"] = ta.momentum.RSIIndicator(df["trade_price"]).rsi()
+
+        # 최근 RSI 값 가져오기
+        recent_rsi = df.iloc[-1]["rsi"]
+
+        # 현재 시간 가져오기 (한국 시간대)
+        kst = pytz.timezone('Asia/Seoul')
+        kst_now = datetime.now(kst)
+
+        # 결과 출력
+        print(f"{kst_now.strftime('%Y-%m-%d %H:%M:%S')} - {coin}의 현재 {minute}분 봉 RSI: {recent_rsi:.2f}")
+
+        # 이평선과 RSI 값 반환
+        return recent_rsi
+    except Exception as e:
+        print(f"RSI 계산 중 오류 발생: {e}")
+        return data_dict
+
+# WebSocket을 통한 실시간 데이터 수집 함수
+async def run_websocket_for_top_5_coins():
+    while True:
+        # 거래대금 상위 5개 코인 정보 가져오기
+        url = "https://api.upbit.com/v1/market/all"
+        markets = await upbit_api_request(url, headers)
+
+        if not markets:
+            print("거래 정보를 가져올 수 없습니다.")
+            await asyncio.sleep(1)
+            continue
+
+        market_ids = [market["market"] for market in markets]
+        url = f"https://api.upbit.com/v1/ticker?markets={','.join(market_ids)}"
+        tickers = await upbit_api_request(url, headers)
+
+        if not tickers:
+            print("티커 정보를 가져올 수 없습니다.")
+            await asyncio.sleep(1)
+            continue
+
+        # 거래대금 상위 5개 코인 추출
+        sorted_tickers = sorted(tickers, key=lambda x: x["acc_trade_price_24h"], reverse=True)
+        top_5_tickers = sorted_tickers[:5]
+
+        # 각 코인에 대한 RSI 계산 및 출력
+        for ticker in top_5_tickers:
+            coin_name = ticker['market']
+
+            # RSI 계산 함수 호출
+            await calculate_realtime_rsi(coin_name, {}, 1, 14, 70, 40, 200)
+
+        await asyncio.sleep(60)  # 60초마다 실행
+
+
 # 거래대금 상위 5종목의 실시간 가격 조회
 async def fetch_top_5_volume_coins():
     while True:
@@ -137,72 +221,12 @@ async def fetch_and_print_balance():
         print("현재 보유 자산 정보:")
         check_balance()  # 잔고 조회 함수 호출
 
-
-# RSI를 1분 간격으로 업데이트하는 함수
-async def update_rsi():
-    while True:
-        # 거래대금 상위 5개 코인 정보 가져오기
-        url = "https://api.upbit.com/v1/market/all"
-        markets = await upbit_api_request(url, headers)
-
-        if not markets:
-            print("거래 정보를 가져올 수 없습니다.")
-            await asyncio.sleep(60)  # 60초(1분) 대기 후 다시 시도
-            continue
-
-        market_ids = [market["market"] for market in markets]
-        url = f"https://api.upbit.com/v1/ticker?markets={','.join(market_ids)}"
-        tickers = await upbit_api_request(url, headers)
-
-        if not tickers:
-            print("티커 정보를 가져올 수 없습니다.")
-            await asyncio.sleep(60)  # 60초(1분) 대기 후 다시 시도
-            continue
-
-        # 거래대금 상위 5개 코인 추출
-        sorted_tickers = sorted(tickers, key=lambda x: x["acc_trade_price_24h"], reverse=True)
-        top_5_tickers = sorted_tickers[:5]
-
-        # 각 코인에 대한 RSI 계산 및 출력
-        for ticker in top_5_tickers:
-            coin_name = ticker['market']
-
-            # 코인에 대한 1분 봉 데이터 가져오기
-            url = f"https://api.upbit.com/v1/candles/minutes/1"
-            params = {"market": coin_name, "count": 14}  # 14개의 최근 봉 데이터를 가져옴 (1분 봉)
-            candle_data = await upbit_api_request(url, headers, params)
-
-
-            if not candle_data:
-                print(f"{coin_name}의 1일 봉 데이터를 가져올 수 없습니다.")
-                continue
-
-            # 봉 데이터를 DataFrame으로 변환
-            df = pd.DataFrame(candle_data)
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
-            df.set_index("timestamp", inplace=True)
-
-            # RSI 계산
-            df["rsi"] = ta.momentum.RSIIndicator(df["trade_price"]).rsi()
-
-            # 최근 RSI 값 가져오기
-            recent_rsi = df.iloc[-1]["rsi"]
-
-            # 코인의 현재 가격 가져오기
-            trade_price = ticker['trade_price']
-
-            # 결과 출력
-            print(f"{coin_name}의 현재 가격: {trade_price} KRW, 1일 봉 RSI: {recent_rsi:.2f}")
-
-        await asyncio.sleep(30)  # 30초 대기
-
-
 async def main():
     # 비동기 작업을 병렬로 실행
     tasks = [
         fetch_top_5_volume_coins(),
-        update_rsi(),  # RSI 업데이트 함수 추가
         fetch_and_print_balance(),  # 잔고 조회 함수 추가
+        run_websocket_for_top_5_coins(),  # WebSocket을 통한 실시간 데이터 수집 함수
     ]
     await asyncio.gather(*tasks)
 
