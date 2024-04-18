@@ -63,7 +63,7 @@ def calculate_return_and_profit(file_path,current_date):
     df_final = pd.concat([df, summary], ignore_index=True)
     
     # 결과를 새로운 엑셀 파일에 저장.
-    new_file_path = file_path.replace('.xlsx', '_updated_with_totals.xlsx')
+    new_file_path = file_path.replace('.xlsx',  f'_{current_date}.xlsx')
     df_final.to_excel(new_file_path, index=False)
     
     return new_file_path
@@ -104,7 +104,7 @@ def save_and_insert_chart_with_values(df, excel_file_path):
 
 # 함수 호출 부분.
 if __name__ == '__main__':
-    file_path = r'경로 기입'
+    file_path = r'C:\Users\KETI\Desktop\업무 자료\LCA알고리즘\LCA\UR_ACC.xlsx'
     # 현재 날짜를 연/월/일 포맷으로
     current_date = datetime.now().strftime('%Y-%m-%d')
     updated_file_path = calculate_return_and_profit(file_path,current_date)
@@ -113,3 +113,7 @@ if __name__ == '__main__':
     df_updated = pd.read_excel(updated_file_path, engine='openpyxl')
     # 시각화 함수를 호출.
     save_and_insert_chart_with_values(df_updated, updated_file_path)
+
+    
+
+# file_path = r'C:\Users\KETI\Desktop\업무 자료\LCA알고리즘\LCA\UR_ACC.xlsx'
