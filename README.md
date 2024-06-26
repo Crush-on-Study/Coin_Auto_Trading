@@ -1,15 +1,12 @@
-# Coin_Auto_Trading
-가상화폐 거래소 플랫폼 업비트를 기반으로 하여 저만의 투자전략을 구현해보았습니다. (진행 중입니다!)
+## 기획 의도
 
---기술 스택--
+흔들리는 것은, 차트가 아닌 개미의 투심이다...!
+<br> 저는 2020년 3월, 대학교 3학년 때부터 주식과 코인 투자를 해왔습니다. 
 
-언어 : Python
+## 기술 스택
 
-프레임워크 : pyupbit
+<img src="https://img.shields.io/badge/python-3776AB?style=for-the-badge&logo=python&logoColor=white"> <img src="https://img.shields.io/badge/mysql-4479A1?style=for-the-badge&logo=mysql&logoColor=white"> <img src="https://img.shields.io/badge/django-092E20?style=for-the-badge&logo=django&logoColor=white"> <img src="https://img.shields.io/badge/amazonaws-232F3E?style=for-the-badge&logo=amazonaws&logoColor=white"> <img src="https://img.shields.io/badge/git-F05032?style=for-the-badge&logo=git&logoColor=white">
 
-프로토콜 : HTTP통신으로 크롤링 중이나, Websocket으로 전환 시도 중
-
-기타 : Git , Notion , AWS EC2 , PyQt5
 
 ## 1차 수익률
 KRW-BTC : +7.03%
